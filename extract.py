@@ -1,42 +1,55 @@
-import requests
+from selenium import webdriver
 from bs4 import BeautifulSoup
 import pandas as pd
+import time
 
-def scrape_salary_data(url):
-    response = requests.get(url)
-    
-    if response.status_code != 200:
-        print(f"Failed to retrieve data. Status code: {response.status_code}")
-        return None
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    players = []
+def get_player_salary(driver, player_url):
+    driver.get(player_url)
+    time.sleep(2)  # Add a delay to allow the page to load
+
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+    player_name = soup.find('h1', {'class': 'team-name'}).text.strip()
     salaries = []
 
-    for row in soup.find_all('tr', class_='teamRow'):
-        player = row.find('td', class_='player').text.strip()
-        salary = row.find('td', class_='cap info').text.strip()
+    salary_tables = soup.find_all('table', {'class': 'datatable'})
+    for table in salary_tables:
+        season = table.find_previous('h2').text.strip()
+        salary_data = []
 
-        players.append(player)
-        salaries.append(salary)
+        for row in table.find_all('tr')[1:]:
+            columns = row.find_all(['th', 'td'])
+            player_salary = columns[2].text.strip()
+            salary_data.append({'Player': player_name, 'Season': season, 'Salary': player_salary})
 
-    data = {'Player': players, 'Salary': salaries}
-    df = pd.DataFrame(data)
-    
-    return df
+        salaries.extend(salary_data)
 
-def main():
-    base_url = 'https://www.spotrac.com/nba/rankings/'
-    years = ['2023-24', '2024-25', '2025-26', '2026-27', '2027-28', '2028-29']
+    return salaries
 
-    for year in years:
-        url = f'{base_url}{year}/cash/'
-        df = scrape_salary_data(url)
+def scrape_salaries(base_url, current_year, seasons_forward):
+    driver = webdriver.Chrome("./chromedriver")  # You may need to download the ChromeDriver executable and provide the path
+    df_list = []
 
-        if df is not None:
-            print(f"\nSalary data for {year}:")
-            print(df)
+    for year in range(current_year, current_year + seasons_forward + 1):
+        url = f"{base_url}/{year}/"
+        driver.get(url)
+        time.sleep(2)  # Add a delay to allow the page to load
 
-if __name__ == "__main__":
-    main()
+        player_links = driver.find_elements_by_css_selector('.team-name a')
+        player_urls = [link.get_attribute('href') for link in player_links]
+
+        for player_url in player_urls:
+            player_salaries = get_player_salary(driver, player_url)
+            df_list.extend(player_salaries)
+
+    driver.quit()
+    return pd.DataFrame(df_list)
+
+# Example usage
+base_url = 'https://www.spotrac.com/rankings/nba/cap-hit/'
+current_year = 2024
+seasons_forward = 5
+result_df = scrape_salaries(base_url, current_year, seasons_forward)
+
+# Display the resulting DataFrame
+print(result_df)
