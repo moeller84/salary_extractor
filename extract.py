@@ -1,7 +1,12 @@
-from selenium import webdriver
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
+import os.path
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+
 
 def get_player_salary(driver, player_url):
     driver.get(player_url)
@@ -27,7 +32,19 @@ def get_player_salary(driver, player_url):
     return salaries
 
 def scrape_salaries(base_url, current_year, seasons_forward):
-    driver = webdriver.Chrome("./chromedriver")  # You may need to download the ChromeDriver executable and provide the path
+    chrome_options = Options()
+    chrome_options.add_argument("--headless") # Ensure GUI is off
+    chrome_options.add_argument("--no-sandbox")
+    
+    # Set path to chromedriver as per your configuration
+    homedir = os.path.expanduser("~")
+    webdriver_service = Service(f"{homedir}/projects/salary_extractor/chromedriver")
+    
+    # Choose Chrome Browser
+    driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
+    #driver_path = './chromedriver'
+    
+    #driver = webdriver.Chrome("/usr/bin/chromedriver")  # You may need to download the ChromeDriver executable and provide the path
     df_list = []
 
     for year in range(current_year, current_year + seasons_forward + 1):
